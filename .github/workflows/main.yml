@@ -26,3 +26,8 @@ jobs:
           GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: python news_agent.py
+permissions:
+    contents: write
+    pages: write
+    id-token: write       
+        
