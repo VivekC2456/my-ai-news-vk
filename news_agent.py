@@ -4,64 +4,56 @@ import requests
 import json
 from datetime import datetime
 
-# Configure API keys
+# 1. Setup Keys (Check names carefully!)
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
-if not GNEWS_API_KEY:
-    print("Error: GNEWS_API_KEY not set in environment")
+if not GNEWS_API_KEY or not GOOGLE_API_KEY:
+    print("Error: API Keys not found in environment.")
     exit(1)
 
 genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Build news URL with API key
-news_url = f"https://gnews.io/api/v4/search?q=AI&token={GNEWS_API_KEY}"
+# 2. Fetch News (Using 'apikey' as the correct parameter)
+news_url = f"https://gnews.io{GNEWS_API_KEY}"
 
-def fetch_news_with_retry(url, max_retries=3, timeout=10):
-    """Fetch news with retry logic and timeout"""
-    for attempt in range(max_retries):
-        try:
-            print(f"Fetching news (attempt {attempt + 1}/{max_retries})...")
-            response = requests.get(url, timeout=timeout)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.Timeout:
-            print(f"Request timeout (attempt {attempt + 1}/{max_retries})")
-        except requests.exceptions.ConnectionError as e:
-            print(f"Connection error (attempt {attempt + 1}/{max_retries}): {str(e)[:100]}")
-        except requests.exceptions.RequestException as e:
-            print(f"Request error: {e}")
-            return None
-        except ValueError as e:
-            print(f"Invalid JSON response: {e}")
-            return None
+def run_agent():
+    try:
+        print("Fetching news articles...")
+        response = requests.get(news_url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        articles = data.get('articles', [])
         
-        if attempt < max_retries - 1:
-            import time
-            wait_time = 2 ** attempt
-            print(f"Retrying in {wait_time} seconds...")
-            time.sleep(wait_time)
-    
-    print("Failed to fetch news after all retries")
-    return None
+        if not articles:
+            print("No articles found.")
+            return
 
-try:
-    data = fetch_news_with_retry(news_url)
-    
-    if data is None or not data.get('articles'):
-        print("No articles retrieved. Exiting gracefully.")
-        exit(0)
-    
-    # Process articles
-    articles = data.get('articles', [])[:5]  # Get top 5
-    
-    print(f"\nFetched {len(articles)} articles at {datetime.now()}")
-    
-    for article in articles:
-        print(f"- {article.get('title', 'No title')}")
-    
-    # Add your Gemini processing here    
-    
-except Exception as e:
-    print(f"Fatal error: {type(e).__name__}: {e}")
-    exit(1)
+        highlights = []
+        for art in articles:
+            print(f"Summarizing: {art['title']}")
+            
+            # Use Gemini to summarize
+            prompt = f"Summarize this news in 2 short sentences with 1 emoji for an Instagram story: {art['title']}. {art['description']}"
+            ai_response = model.generate_content(prompt)
+            summary = ai_response.text if ai_response.text else "No summary available."
+            
+            highlights.append({
+                "title": art['title'],
+                "summary": summary,
+                "url": art['url']
+            })
+
+        # 3. Save the file where the website can find it
+        os.makedirs('web', exist_ok=True)
+        with open('web/highlights.json', 'w') as f:
+            json.dump(highlights, f, indent=4)
+        
+        print(f"Successfully saved {len(highlights)} highlights to web/highlights.json")
+
+    except Exception as e:
+        print(f"Agent Error: {e}")
+
+if __name__ == "__main__":
+    run_agent()
