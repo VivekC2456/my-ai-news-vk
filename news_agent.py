@@ -1,5 +1,5 @@
 import os
-import google.genai as genai
+import google.generativeai as genai
 import requests
 import json
 from datetime import datetime
@@ -60,7 +60,7 @@ try:
     for article in articles:
         print(f"- {article.get('title', 'No title')}")
     
-    # Add your Gemini processing here
+    # Add your Gemini processing here    
     
 except Exception as e:
     print(f"Fatal error: {type(e).__name__}: {e}")
